@@ -1,0 +1,21 @@
+{
+    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1",
+    "primary_key": "SSN",
+    "columns": {
+        "SSN": {
+            "sdtype": "ssn",
+            "pii": true
+        },
+        "FirstName": {
+            "sdtype": "first_name",
+            "pii": true
+        },
+        "LastName": {
+            "sdtype": "last_name",
+            "pii": true
+        },
+        "Gender": {
+            "sdtype": "categorical"
+        }
+    }
+}
