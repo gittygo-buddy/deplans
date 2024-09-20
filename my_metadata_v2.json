@@ -1,6 +1,4 @@
 {
-    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1",
-    "primary_key": "SSN",
     "columns": {
         "SSN": {
             "sdtype": "ssn",
@@ -17,5 +15,6 @@
         "Gender": {
             "sdtype": "categorical"
         }
-    }
+    },
+    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1"
 }

@@ -28,13 +28,13 @@ def save_new_metadata_version(base_path, metadata):
     metadata.save_to_json(filepath=new_metadata_path)
     print(f"New metadata saved as {new_metadata_path}")
 
-# Step 1: Load the layout CSV file
+# Step 1: Load the layout CSV file and group columns by Block_ID (without including Block_ID in data)
 def load_layout(file_layout):
     print("Loading the layout...")
     layout = pd.read_csv(file_layout)
     layout.columns = [col.strip() for col in layout.columns]
     
-    # Group columns by block
+    # Group columns by block (Block_ID is only used for grouping, not included in the data)
     block_columns = {}
     for _, row in layout.iterrows():
         block_id = row['Block_ID']
@@ -46,38 +46,40 @@ def load_layout(file_layout):
     print("Layout loaded successfully.")
     return layout, block_columns
 
-# Step 2: Load the sample data file and remove the first and last rows
+# Step 2: Load sample data from the text file
 def load_sample_data(file_path):
     print("Loading sample data...")
-    with open(file_path, 'r') as infile:
-        sample_data = infile.readlines()
-    first_row = sample_data[0]
-    last_row = sample_data[-1]
-    # Return first and last rows separately
-    sample_data = sample_data[1:-1]
-    print("Sample data loaded. First and last rows removed.")
-    return sample_data, first_row, last_row
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    first_row = lines[0].strip()
+    last_row = lines[-1].strip()
+    data = lines[1:-1]  # Exclude first and last row
+    print("Sample data loaded.")
+    return data, first_row, last_row
 
-# Step 3: Process sample data using the layout
+# Step 3: Process sample data using the layout (without using Block_ID in the DataFrame)
 def process_sample_data(sample_data, layout):
     print("Processing sample data...")
     data_rows = []
+    block_ids = []  # Store block IDs for appending later
     for line in sample_data:
         line = line.strip()
         current_position = 0
         row_data = {}
         for _, row in layout.iterrows():
-            column_name = row['Column_Name']
+            column_name = row['Column_Name']  # Only use the column names for data extraction
             length = row['Length']
+            block_id = row['Block_ID']  # Capture the Block_ID
             column_data = line[current_position:current_position + length].strip()
             row_data[column_name] = column_data
             current_position += length
         data_rows.append(row_data)
+        block_ids.append(block_id)  # Keep track of the block IDs for each row
     df = pd.DataFrame(data_rows)
     print("Data processed into DataFrame.")
-    return df
+    return df, block_ids
 
-# Step 4: Load or create metadata, then fit the synthesizer
+# Step 4: Generate synthetic data (Block_ID is not included in the DataFrame)
 def generate_synthetic_data(df, metadata_base_path, block_columns, use_same_metadata_version=True, ignored_blocks=None):
     print("Generating synthetic data using SDV...")
 
@@ -121,48 +123,42 @@ def generate_synthetic_data(df, metadata_base_path, block_columns, use_same_meta
     print("Synthetic data generated.")
     return synthetic_data, metadata
 
-
-# Step 5: Run diagnostics and quality checks on the synthetic data
+# Step 5: Evaluate synthetic data
 def evaluate_synthetic_data(df, synthetic_data, metadata):
     print("Evaluating synthetic data quality...")
-    diagnostic = run_diagnostic(
-        real_data=df,
-        synthetic_data=synthetic_data,
-        metadata=metadata
-    )
-    quality_report = evaluate_quality(df, synthetic_data, metadata)
-    print("Evaluation complete. Diagnostics and quality checks done.")
-    return diagnostic, quality_report
+    
+    # Generate a diagnostic report
+    diagnostic_report = run_diagnostic(synthetic_data, df, metadata)
+    
+    # Evaluate quality using evaluate_quality with the required metadata
+    quality_report = evaluate_quality(synthetic_data, df, metadata)
+    
+    print("Evaluation completed.")
+    return diagnostic_report, quality_report
 
-# Step 6: Save metadata if there are changes
-def save_if_metadata_changed(df, metadata, metadata_base_path):
-    new_metadata = SingleTableMetadata()
-    new_metadata.detect_from_dataframe(df)
-    if new_metadata != metadata:
-        print("Metadata has changed. Saving new version...")
-        save_new_metadata_version(metadata_base_path, new_metadata)
-    else:
-        print("No changes in metadata. No new version created.")
 
-def write_output_file(output_file_path, synthetic_data, layout, first_row, last_row):
+# Step 6: Write output file and append Block_IDs back to synthetic data
+def write_output_file(output_file_path, synthetic_data, layout, first_row, last_row, block_ids):
     print("Writing output to file...")
+
     with open(output_file_path, 'w') as outfile:
         # Write original first row
-        outfile.write(first_row)
-        # Write synthetic data
-        for _, row in synthetic_data.iterrows():
+        outfile.write(first_row + "\n")
+        # Write synthetic data with Block_IDs appended back
+        for index, row in synthetic_data.iterrows():
             transformed_data = ""
             current_position = 0
             for _, layout_row in layout.iterrows():
                 column_name = layout_row['Column_Name']
                 length = layout_row['Length']
+                block_id = block_ids[index]  # Get the Block_ID for the current row
                 # Preserve original empty values in the output
                 if pd.isna(row[column_name]) or row[column_name] == '':
                     column_data = ''.ljust(length)  # Maintain empty space
                 else:
                     column_data = str(row[column_name]).ljust(length)  # Format with padding
                 transformed_data += column_data
-            outfile.write(transformed_data + '\n')
+            outfile.write(f"{block_ids[index]} {transformed_data}\n")  # Append Block_ID before writing data
         # Write original last row
         outfile.write(last_row)
     print(f"Data written to {output_file_path}.")
@@ -171,18 +167,17 @@ def write_output_file(output_file_path, synthetic_data, layout, first_row, last_
 def main(use_same_metadata_version=True, ignored_blocks=None):
     layout, block_columns = load_layout(file_layout)
     sample_data, first_row, last_row = load_sample_data(file_path)
-    df = process_sample_data(sample_data, layout)
+    df, block_ids = process_sample_data(sample_data, layout)  # Capture block_ids
     
     synthetic_data, metadata = generate_synthetic_data(df, metadata_base_path, block_columns, use_same_metadata_version, ignored_blocks)
     diagnostic, quality_report = evaluate_synthetic_data(df, synthetic_data, metadata)
     
     if not use_same_metadata_version:
-        save_if_metadata_changed(df, metadata, metadata_base_path)
+        save_new_metadata_version(metadata_base_path, metadata)
     
-    write_output_file(output_file_path, synthetic_data, layout, first_row, last_row)
-    print("\nProcessing complete.")
+    write_output_file(output_file_path, synthetic_data, layout, first_row, last_row, block_ids)  # Pass block_ids for appending
 
 # Run the main function with the flag to control metadata versioning and specify blocks to ignore
 if __name__ == "__main__":
-    ignored_blocks = []  # Specify the block IDs to ignore
+    ignored_blocks = [1]  # Specify the block IDs to ignore
     main(use_same_metadata_version=False, ignored_blocks=ignored_blocks)

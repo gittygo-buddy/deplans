@@ -75,9 +75,6 @@ else:
 synthesizer = GaussianCopulaSynthesizer(metadata)
 synthesizer.fit(df)
 
-# Preserve original empty values in synthetic data on a row-by-row basis
-for column in df.columns:
-    df[column] = df[column].where(df[column].notna(), pd.NA)
 
 synthetic_data = synthesizer.sample(num_rows=len(df))
 print("Synthetic data generated.")
@@ -114,3 +111,4 @@ with open(output_file_path, 'w') as outfile:
 print(f"Data written to {output_file_path}.")
 
 print("\nProcessing complete.")
+
