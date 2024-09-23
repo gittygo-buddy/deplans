@@ -1,0 +1,4 @@
+ColID,Column_Name,DataTtype,Length
+1,PTest0,varchar,2
+2,PTest1,varchar,2
+3,net_amount_due,varchar,2

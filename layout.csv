@@ -1,5 +1,5 @@
 Block_ID,Column_Name,DataTtype,Length
-1,Test,varchar,2
-1,FirstName,varchar,1
-2,LastName,varchar,1
-3,Gender,varchar,1
+1,Test1,varchar,2
+1,Test2,varchar,1
+2,Test3,varchar,1
+3,net_amount_due,varchar,1

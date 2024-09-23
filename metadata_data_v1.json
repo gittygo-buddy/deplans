@@ -1,0 +1,21 @@
+{
+    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1",
+    "columns": {
+        "Test1": {
+            "sdtype": "unknown",
+            "pii": true
+        },
+        "Test2": {
+            "sdtype": "unknown",
+            "pii": true
+        },
+        "Test3": {
+            "sdtype": "unknown",
+            "pii": true
+        },
+        "net_amount_due": {
+            "sdtype": "unknown",
+            "pii": true
+        }
+    }
+}

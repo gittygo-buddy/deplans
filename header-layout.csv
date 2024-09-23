@@ -1,0 +1,5 @@
+ColID,Column_Name,DataTtype,Length
+1,HTest0,varchar,2
+2,HTest1,varchar,2
+3,HTest2,varchar,2
+4,HTest3,varchar,2
