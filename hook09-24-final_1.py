@@ -14,11 +14,13 @@ metadata_base_path = r"C:\Users\saman\OneDrive\Desktop\project-x\metadata"
 base_name = os.path.splitext(os.path.basename(file_path))[0]
 output_file_path = os.path.join(os.path.dirname(file_path), f"{base_name}_syn.txt")
 
+
 def get_latest_metadata_version(base_path, metadata_type):
     version = 1
     while os.path.exists(f"{base_path}_{metadata_type}_v{version}.json"):
         version += 1
     return version - 1 if version > 1 else None
+
 
 def save_new_metadata_version(base_path, metadata, metadata_type):
     latest_version = get_latest_metadata_version(base_path, metadata_type)
@@ -27,18 +29,36 @@ def save_new_metadata_version(base_path, metadata, metadata_type):
     metadata.save_to_json(filepath=new_metadata_path)
     print(f"New {metadata_type} metadata saved as {new_metadata_path}")
 
+
 def load_layout(file_layout):
     print("Loading the layout...")
     layout = pd.read_csv(file_layout).rename(columns=lambda x: x.strip())
     print("Layout loaded successfully.")
     return layout
 
+
 def load_sample_data(file_path):
     print("Loading sample data...")
     with open(file_path, 'r') as infile:
-        sample_data = infile.readlines()[1:-1]  # Remove first and last rows
-    print("Sample data loaded. First and last rows removed.")
+        sample_data = infile.readlines()
+    print("Sample data loaded.")
     return sample_data
+
+
+def process_header_data(header_row, layout):
+    print("Processing header data...")
+    current_position = 0
+    row_data = {}
+    for _, row in layout.iterrows():
+        column_name = row['Column_Name']
+        length = row['Length']
+        row_data[column_name] = header_row[current_position:current_position + length].strip()
+        current_position += length
+
+    df = pd.DataFrame([row_data])  # Create DataFrame from header data
+    print("Header data processed into DataFrame.")
+    return df
+
 
 def process_sample_data(sample_data, layout, date_columns=[]):
     print("Processing sample data...")
@@ -52,7 +72,7 @@ def process_sample_data(sample_data, layout, date_columns=[]):
             row_data[column_name] = line[current_position:current_position + length].strip()
             current_position += length
         data_rows.append(row_data)
-    
+
     df = pd.DataFrame(data_rows)
 
     # Handle date columns
@@ -63,6 +83,7 @@ def process_sample_data(sample_data, layout, date_columns=[]):
 
     print("Data processed into DataFrame.")
     return df
+
 
 def generate_synthetic_data(df, metadata_base_path, metadata_type, use_same_metadata_version=True):
     print(f"Generating synthetic data for {metadata_type} using SDV...")
@@ -88,12 +109,14 @@ def generate_synthetic_data(df, metadata_base_path, metadata_type, use_same_meta
     print(f"Synthetic {metadata_type} data generated.")
     return synthetic_data, metadata
 
+
 def evaluate_synthetic_data(df, synthetic_data, metadata):
     print("Evaluating synthetic data quality...")
     diagnostic = run_diagnostic(real_data=df, synthetic_data=synthetic_data, metadata=metadata)
     quality_report = evaluate_quality(df, synthetic_data, metadata)
     print("Evaluation complete.")
     return diagnostic, quality_report
+
 
 ########################### Build Trailer ###################################
 def build_page_trailer(df):
@@ -117,6 +140,8 @@ def build_page_trailer(df):
 
     return trailer_data.ljust(48)[:48]  # Ensure length is exactly 48 characters
 #############################################################################
+
+
 ########################### Write file ######################################
 def write_output_file(output_file_path, synthetic_data, layout, synthetic_header, header_layout, date_columns=[]):
     print("Writing output to file...")
@@ -148,33 +173,41 @@ def write_output_file(output_file_path, synthetic_data, layout, synthetic_header
     print(f"Data written to {output_file_path}.")
 #############################################################################
 
+
 def main(use_same_metadata_version=True):
     layout = load_layout(file_layout)
     header_layout = load_layout(header_layout_file)
     
     sample_data = load_sample_data(file_path)
-    header_df = process_sample_data([sample_data[0]], header_layout)
-    
-    print("Header DataFrame:")
-    print(header_df)
 
+    # Process header (first row)
+    header_row = sample_data[0]  # First row is header
+    header_df = process_header_data(header_row, header_layout)
+
+    # Generate synthetic header
     synthetic_header, header_metadata = generate_synthetic_data(
         header_df, metadata_base_path, metadata_type="header", use_same_metadata_version=use_same_metadata_version
     )
-   
-    date_columns = ['da']  # Replace with actual column names that are dates
-    df = process_sample_data(sample_data, layout, date_columns)  # Pass date_columns here
 
+    # Process data (everything after the header)
+    data_rows = sample_data[1:]  # Remaining rows are data
+    date_columns = ['da']  # Replace with actual date column names
+    df = process_sample_data(data_rows, layout, date_columns)  # Pass date_columns here
+
+    # Generate synthetic data
     synthetic_data, data_metadata = generate_synthetic_data(
         df, metadata_base_path, metadata_type="data", use_same_metadata_version=use_same_metadata_version
     )
 
+    # Evaluate synthetic data quality
     evaluate_synthetic_data(header_df, synthetic_header, header_metadata)
     evaluate_synthetic_data(df, synthetic_data, data_metadata)
 
+    # Write output
     write_output_file(output_file_path, synthetic_data, layout, synthetic_header, header_layout, date_columns)
 
     print("\nProcessing complete.")
 
+
 if __name__ == "__main__":
-    main(use_same_metadata_version=True)  # Set to False to allow metadata updates
+    main(use_same_metadata_version=True)  # Set to False if you want to generate new metadata each time
