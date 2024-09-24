@@ -12,6 +12,10 @@
         },
         "net_amount_due": {
             "sdtype": "categorical"
+        },
+        "da": {
+            "sdtype": "datetime",
+            "datetime_format": "%Y%m%d"
         }
     }
 }
