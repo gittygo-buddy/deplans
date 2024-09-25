@@ -3,7 +3,17 @@ import pandas as pd
 from sdv.single_table import GaussianCopulaSynthesizer
 from sdv.metadata import SingleTableMetadata
 from sdv.evaluation.single_table import run_diagnostic, evaluate_quality
-import config  # Import the paths from config.py
+import util as ut
+
+# File paths
+file_layout = r"C:\Users\saman\OneDrive\Desktop\project-x\layout.csv"
+file_path = r"C:\Users\saman\OneDrive\Desktop\project-x\sample.txt"
+header_layout_file = r"C:\Users\saman\OneDrive\Desktop\project-x\header-layout.csv"
+metadata_base_path = r"C:\Users\saman\OneDrive\Desktop\project-x\metadata"
+
+# Create output file path
+base_name = os.path.splitext(os.path.basename(file_path))[0]
+output_file_path = os.path.join(os.path.dirname(file_path), f"{base_name}_syn.txt")
 
 def get_latest_metadata_version(base_path, metadata_type):
     version = 1
@@ -27,24 +37,37 @@ def load_layout(file_layout):
 def load_sample_data(file_path):
     print("Loading sample data...")
     with open(file_path, 'r') as infile:
-        sample_data = infile.readlines()[1:-1]  # Remove first and last rows
-    print("Sample data loaded. First and last rows removed.")
+        sample_data = infile.readlines()
+    print("Sample data loaded.")
     return sample_data
+
+def process_cd_records(sample_data):
+    print("Processing CE records...")
+    ce_rows = []
+    
+    for line in sample_data:
+        if line.startswith("CD100"):  # Assuming CE records start with "CE"
+            row_data = {"CD_Record": line.strip()}  # Store the entire line as a single column
+            ce_rows.append(row_data)
+
+    df_ce = pd.DataFrame(ce_rows)
+    print("CE records processed into DataFrame.")
+    return df_ce
 
 def process_sample_data(sample_data, layout, date_columns=[]):
     print("Processing sample data...")
     data_rows = []
     for line in sample_data:
-        current_position = 0
-        row_data = {}
-        for _, row in layout.iterrows():
-            column_name = row['Column_Name']
-            length = row['Length']
-            row_data[column_name] = line[current_position:current_position + length].strip()
-            current_position += length
-        data_rows.append(row_data)
-    
-    df = pd.DataFrame(data_rows)
+        if not line.startswith("CD"):
+            current_position = 0
+            row_data = {}
+            for _, row in layout.iterrows():
+                column_name = row['Column_Name']
+                length = row['Length']
+                row_data[column_name] = line[current_position:current_position + length].strip()
+                current_position += length
+            data_rows.append(row_data)
+        df = pd.DataFrame(data_rows)
 
     # Handle date columns
     for column in date_columns:
@@ -90,26 +113,40 @@ def evaluate_synthetic_data(df, synthetic_data, metadata):
 def build_page_trailer(df):
     record_count = len(df)
 
-    # Ensure numeric columns are correctly processed
+    # Apply get_return_value() to each relevant column before summing
+    df['net_amount_due'] = df['net_amount_due'].apply(ut.get_return_value)
+    df['gross_amount_due'] = 0#df['gross_amount_due'].apply(ut.get_return_value)
+    df['patient_pay_amount'] = 0#df['patient_pay_amount'].apply(ut.get_return_value)
+
+    # Ensure numeric co lumns are correctly processed
     df['net_amount_due'] = pd.to_numeric(df['net_amount_due'], errors='coerce')
     net_amount_due_sum = df['net_amount_due'].sum() if 'net_amount_due' in df.columns else 0
-    gross_amount_due_sum = df['gross_amount_due'].sum() if 'gross_amount_due' in df.columns else 0
-    pat_paid_amount_sum = df['patient_pay_amount'].sum() if 'patient_pay_amount' in df.columns else 0
+    gross_amount_due_sum = 0#df['gross_amount_due'].sum() if 'gross_amounst_due' in df.columns else 0
+    pat_paid_amount_sum = 0#df['patient_pay_amount'].sum() if 'patient_pay_amount' in df.columns else 0
 
+    # Build the trailer data with sums and formatting
     trailer_data = (
         "PT" +
-        str(record_count).zfill(10) +
-        str(int(net_amount_due_sum)).zfill(11) +
+        str(record_count).zfill(10) +                         # Record count
+        str(int(net_amount_due_sum)).zfill(11) +              # Net amount due sum
         "A" +
-        str(int(gross_amount_due_sum)).zfill(11) +
+        str(int(gross_amount_due_sum)).zfill(11) +            # Gross amount due sum
         "G" +
-        str(int(pat_paid_amount_sum)).zfill(11) + "D"
+        str(int(pat_paid_amount_sum)).zfill(11) + "D"         # Patient paid amount sum
     )
 
-    return trailer_data.ljust(48)[:48]  # Ensure length is exactly 48 characters
+    # Ensure trailer data fits into the 48-character limit
+    return trailer_data.ljust(48)[:48]
+
+# Example usage
+# Assuming df is your DataFrame with relevant columns
+# trailer = build_page_trailer(df)
+# print(trailer)
+
 #############################################################################
+
 ########################### Write file ######################################
-def write_output_file(output_file_path, synthetic_data, layout, synthetic_header, header_layout, date_columns=[]):
+def write_output_file(output_file_path, synthetic_data, df_ce, layout, synthetic_header, header_layout, date_columns=[]):
     print("Writing output to file...")
     with open(output_file_path, 'w') as outfile:
         # Write synthetic header
@@ -132,6 +169,11 @@ def write_output_file(output_file_path, synthetic_data, layout, synthetic_header
                     transformed_data += ''.ljust(length)
             outfile.write(transformed_data + '\n')
 
+        # Write synthetic data for CE records
+        for _, row in df_ce.iterrows():
+            transformed_data = row['CD_Record'].strip()  # Assuming the entire CE record is stored in this column
+            outfile.write(transformed_data + '\n')
+
         # Build and write page trailer
         trailer_record = build_page_trailer(synthetic_data)
         outfile.write(trailer_record + '\n')
@@ -140,30 +182,33 @@ def write_output_file(output_file_path, synthetic_data, layout, synthetic_header
 #############################################################################
 
 def main(use_same_metadata_version=True):
-    layout = load_layout(config.file_layout)  # Use the imported config paths
-    header_layout = load_layout(config.header_layout_file)
-    
-    sample_data = load_sample_data(config.file_path)
+    layout = load_layout(file_layout)
+    header_layout = load_layout(header_layout_file)
+    sample_data = load_sample_data(file_path)
     header_df = process_sample_data([sample_data[0]], header_layout)
     
     print("Header DataFrame:")
     print(header_df)
 
     synthetic_header, header_metadata = generate_synthetic_data(
-        header_df, config.metadata_base_path, metadata_type="header", use_same_metadata_version=use_same_metadata_version
+        header_df, metadata_base_path, metadata_type="header", use_same_metadata_version=use_same_metadata_version
     )
+
    
     date_columns = ['da']  # Replace with actual column names that are dates
-    df = process_sample_data(sample_data, layout, date_columns)  # Pass date_columns here
+    df = process_sample_data(sample_data[1:], layout, date_columns)  # Skip the first row for actual data
+    df_ce =process_cd_records(sample_data)
+ 
 
     synthetic_data, data_metadata = generate_synthetic_data(
-        df, config.metadata_base_path, metadata_type="data", use_same_metadata_version=use_same_metadata_version
+        df, metadata_base_path, metadata_type="data", use_same_metadata_version=use_same_metadata_version
     )
 
-    evaluate_synthetic_data(header_df, synthetic_header, header_metadata)
-    evaluate_synthetic_data(df, synthetic_data, data_metadata)
 
-    write_output_file(config.output_file_path, synthetic_data, layout, synthetic_header, header_layout, date_columns)
+    # evaluate_synthetic_data(header_df, synthetic_header, header_metadata)
+    # evaluate_synthetic_data(df, synthetic_data, data_metadata)
+
+    write_output_file(output_file_path, synthetic_data,df_ce,layout, synthetic_header, header_layout, date_columns)
 
     print("\nProcessing complete.")
 
