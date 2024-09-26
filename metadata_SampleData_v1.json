@@ -1,0 +1,21 @@
+{
+    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1",
+    "columns": {
+        "Test1": {
+            "sdtype": "categorical"
+        },
+        "Test2": {
+            "sdtype": "categorical"
+        },
+        "Test3": {
+            "sdtype": "categorical"
+        },
+        "net_amount_due": {
+            "sdtype": "categorical"
+        },
+        "da": {
+            "sdtype": "datetime",
+            "datetime_format": "%Y%m%d"
+        }
+    }
+}
