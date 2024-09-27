@@ -7,26 +7,28 @@ import util as ut
 import random
 import time
 # File paths
-file_layout = r"C:\Users\saman\OneDrive\Desktop\project-x\layout.csv"
+
+
+
+# File paths
+file_layout = r"C:\Users\saman\OneDrive\Desktop\project-x\file_layout.csv"
 file_path = r"C:\Users\saman\OneDrive\Desktop\project-x\sample.txt"
-header_layout_file = r"C:\Users\saman\OneDrive\Desktop\project-x\header-layout.csv"
+# header_layout_file = r"C:\Users\saman\OneDrive\Desktop\project-x\header-layout.csv"
 metadata_base_path = r"C:\Users\saman\OneDrive\Desktop\project-x\metadata"
+
 
 # Create output file path
 base_name = os.path.splitext(os.path.basename(file_path))[0]
 output_file_path = os.path.join(os.path.dirname(file_path), f"{base_name}_syn.txt")
 
 ################## Custom Functions ##############
-
 def generate_random_number(length):
     # Generate a random number with the specified length
-    if length is None or length == '':
-        return None  
-    if length <= 0:
-        raise ValueError("Length must be a positive integer.")
+    if length is None or length == '' or length <= 0:
+        return 0
+    min_value = 10 ** (length - 1)
+    max_value = 10 ** length - 1
     
-    min_value = 10 ** (length - 1)  
-    max_value = 10 ** length - 1  
     return random.randint(min_value, max_value)
 
 def get_latest_metadata_version(base_path, metadata_type):
@@ -44,20 +46,20 @@ def save_new_metadata_version(base_path, metadata, metadata_type):
     metadata.save_to_json(filepath=new_metadata_path)
     print(f"New {metadata_type} metadata saved as {new_metadata_path}")
 
-def load_layout(file_layout):
+def read_file_layout(file_layout):
     # Load the layout CSV file into a DataFrame
-    print("Loading the layout...")
+    print("Loading the file layout...")
     layout = pd.read_csv(file_layout).rename(columns=lambda x: x.strip())
-    print("Layout loaded successfully.")
+    print("File layout loaded successfully.")
     return layout
 
-def load_sample_data(file_path):
+def read_file_data(file_path):
     # Load the sample data from the specified file
-    print("Loading sample data...")
+    print("Loading file data...")
     with open(file_path, 'r') as infile:
-        sample_data = infile.readlines()
-    print("Sample data loaded.")
-    return sample_data
+        raw_data = infile.readlines()
+    print("File data loaded successfully.")
+    return raw_data
 
 def process_cd_records(sample_data):
     # Process records that start with "CD100" into a DataFrame
@@ -73,11 +75,11 @@ def process_cd_records(sample_data):
     print("CE records processed into DataFrame.")
     return df_ce
 
-def process_sample_data(sample_data, layout, date_columns=[]):
+def process_file_data(data, layout, date_columns=[]):
     # Process the sample data according to the specified layout
-    print("Processing sample data...")
+    print("Processing data...")
     data_rows = []
-    for line in sample_data:
+    for line in data:
         if not line.startswith("CD"):
             current_position = 0
             row_data = {}
@@ -136,7 +138,7 @@ def build_page_trailer(df):
     # Build the page trailer with summaries of the relevant columns
     record_count = len(df)
 
-    df['net_amount_due'] = df['net_amount_due'].apply(ut.get_return_value)
+    df['net_amount_due'] = 0#df['net_amount_due'].apply(ut.get_return_value)
     df['gross_amount_due'] = 0 
     df['patient_pay_amount'] = 0 
 
@@ -191,76 +193,106 @@ def write_output_file(output_file_path, synthetic_data, df_ce, layout, synthetic
         outfile.write(trailer_record + '\n')
 
     print(f"Data written to {output_file_path}.")
-
 #############################################################################
 
 import time  # Add this import at the top of your script
 
-import time  # Ensure this is imported at the top
-
 def main(use_same_metadata_version=True):
     # Track the total execution time
     total_start_time = time.time()  # Start the total timer
-    
+    print('############################################################################')
     start_time = time.time()
-    layout = load_layout(file_layout)
-    print(f"Time taken to load layout: {time.time() - start_time:.2f} seconds")
-    
+    file_layout_df = read_file_layout(file_layout)
+    hdr_file_layout = file_layout_df[file_layout_df['Type'] == 'HDR']
+    de_file_layout = file_layout_df[file_layout_df['Type'] == 'DE']
+    print(f"Time taken to read file layout to dataframe: {time.time() - start_time:.2f} seconds")
+    print('############################################################################')
     start_time = time.time()
-    header_layout = load_layout(header_layout_file)
-    print(f"Time taken to load header layout: {time.time() - start_time:.2f} seconds")
-    
+    raw_df = read_file_data(file_path)
+    print(f"Time taken to load file data: {time.time() - start_time:.2f} seconds")
+    print('############################################################################')
     start_time = time.time()
-    sample_data = load_sample_data(file_path)
-    print(f"Time taken to load sample data: {time.time() - start_time:.2f} seconds")
-    
-    start_time = time.time()
-    header_df = process_sample_data([sample_data[0]], header_layout)
+    header_df = process_file_data([raw_df[0]], hdr_file_layout)
     print(f"Time taken to process header data: {time.time() - start_time:.2f} seconds")
     
     start_time = time.time()
-    synthetic_header, header_metadata = generate_synthetic_data(
+    synthetic_header_df, header_metadata_df = generate_synthetic_data(
         header_df, metadata_base_path, metadata_type="header", use_same_metadata_version=use_same_metadata_version
     )
     print(f"Time taken to generate synthetic header data: {time.time() - start_time:.2f} seconds")
-
-    date_columns = ['da']
+    print('############################################################################')
+    
+    #date_columns = ['date_of_birth','date_of_service','billing_cycle_end_date','check_date','date_prescription_written','invoiced_date','cardholder_date_of_birth','adjudication_date']  # Replace with actual column names that are dates  # Replace with actual date column names
+    date_columns = ['da']  # Replace with actual column names that are dates  # Replace with actual date column names
     
     start_time = time.time()
-    df = process_sample_data(sample_data[1:], layout, date_columns)
-    print(f"Time taken to process main sample data: {time.time() - start_time:.2f} seconds")
+    tabluar_df = process_file_data(raw_df[1:], de_file_layout, date_columns)
+    print(f"Time taken to process data into Dataframe: {time.time() - start_time:.2f} seconds")
     
-    start_time = time.time()
-    df_ce = process_cd_records(sample_data)
-    print(f"Time taken to process CE records: {time.time() - start_time:.2f} seconds")
 
-    # Apply function to generate random numbers based on the length of each entry in 'Test2'
     start_time = time.time()
-    df['Test2'] = df['Test2'].apply(lambda x: generate_random_number(len(x)))
-    print(f"Time taken to generate random numbers for Test2: {time.time() - start_time:.2f} seconds")
+    cd_df = process_cd_records(tabluar_df)
+    print(f"Time taken to process CD records into Dataframe: : {time.time() - start_time:.2f} seconds")
+
+    # Write the DataFrame to a CSV file in the same path
+    tabluar_df.to_csv('dataframe_output_presdv.csv', index=False,mode='w')
+    print('Write dataframe with header completed successfully')
+
+
+    #Apply function to generate random numbers based on the length of each entry in 
+    # start_time = time.time()
+    # print(f"Random number generation started for senstive columns")
+    # tabluar_df['cardholder_id'] = tabluar_df['cardholder_id'].apply(lambda x: generate_random_number(len(x) if x else 0))
+    # tabluar_df['patient_id'] = tabluar_df['patient_id'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['payment_reference_id'] = tabluar_df['payment_reference_id'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['claim_reference_id'] = tabluar_df['claim_reference_id'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['prior_authorization_number_submitted'] = tabluar_df['prior_authorization_number_submitted'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['prior_authorization_number_assigned'] = tabluar_df['prior_authorization_number_assigned'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['transaction_id_cross_reference'] = tabluar_df['transaction_id_cross_reference'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['transaction_id'] = tabluar_df['transaction_id'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['vendor_batch_code'] = tabluar_df['vendor_batch_code'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['vendor_batch_code_cross_reference'] = tabluar_df['vendor_batch_code_cross_reference'].apply(lambda x: generate_random_number(len(x)))
+    # tabluar_df['cardholder_id_alternate'] = tabluar_df['cardholder_id_alternate'].apply(lambda x: generate_random_number(len(x)))
+    # print(f"Time taken to generate random numbers for sensitive columns: {time.time() - start_time:.2f} seconds")
 
     start_time = time.time()
     synthetic_data, data_metadata = generate_synthetic_data(
-        df, metadata_base_path, metadata_type="data", use_same_metadata_version=use_same_metadata_version
+        tabluar_df, metadata_base_path, metadata_type="data", use_same_metadata_version=use_same_metadata_version
     )
     print(f"Time taken to generate synthetic data: {time.time() - start_time:.2f} seconds")
 
+    # Write the DataFrame to a CSV file in the same path
+    synthetic_data.to_csv('synthetic_data.csv', index=False)
+    print('Write synthetic data with headers done')
+
+    print('############################################################################')
+
     start_time = time.time()
-    evaluate_synthetic_data(header_df, synthetic_header, header_metadata)
-    evaluate_synthetic_data(df, synthetic_data, data_metadata)
+    evaluate_synthetic_data(header_df, synthetic_header_df, header_metadata_df)
+    evaluate_synthetic_data(tabluar_df, synthetic_data, data_metadata)
     print(f"Time taken to evaluate synthetic data: {time.time() - start_time:.2f} seconds")
 
+    print('############################################################################')
+
     start_time = time.time()
-    write_output_file(output_file_path, synthetic_data, df_ce, layout, synthetic_header, header_layout, date_columns)
+    write_output_file(output_file_path, synthetic_data, cd_df, file_layout_df, synthetic_header_df, de_file_layout, date_columns)
     print(f"Time taken to write output file: {time.time() - start_time:.2f} seconds")
     
+
+
+    #  write_output_file(
+    #     output_file_path, synthetic_data, df_ce, layout, synthetic_header_df, header_layout, date_columns
+    # )
     
     # Calculate total execution time
-    total_time_taken = time.time() - total_start_time
-    print(f"\nTotal time taken for the entire process: {total_time_taken:.2f} seconds")
+    # total_time_taken = time.time() - total_start_time
+    # print(f"\nTotal time taken for the entire process: {total_time_taken:.2f} seconds")
 
-    print("\nProcessing complete.")
-
+    # print("\nProcessing complete.")
+    print('############################################################################')
 
 if __name__ == "__main__":
     main(use_same_metadata_version=True) 
+
+
+
