@@ -1,0 +1,13 @@
+ColID,Column_Name,DataType,Length,Type,IsSensitive,Block_ID
+1,Field1,varchar,2,PA,,
+2,Filed2,varchar,2,PA,,
+3,Field3,varchar,2,PA,,
+4,Filed4,varchar,2,PA,,
+5,Field1,varchar,2,DE,,
+6,Filed2,varchar,1,DE,,
+7,Field3,varchar,1,DE,,
+8,net_amount_due,varchar,8,DE,,
+9,da,varchar,8,DE,,
+10,Field1,varchar,2,PT,,
+11,Filed2,varchar,2,PT,,
+12,Field3,varchar,10,PT,,

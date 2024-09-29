@@ -6,13 +6,11 @@ from sdv.evaluation.single_table import run_diagnostic, evaluate_quality
 import util as ut
 import random
 import time
-# File paths
-
 
 
 # File paths
-file_layout = r"C:\Users\saman\OneDrive\Desktop\project-x\file_layout.csv"
-file_path = r"C:\Users\saman\OneDrive\Desktop\project-x\sample.txt"
+file_layout = r"C:\Users\saman\OneDrive\Desktop\project-x\file_layout_pl.csv"
+file_path = r"C:\Users\saman\OneDrive\Desktop\project-x\sample - pl.txt"
 # header_layout_file = r"C:\Users\saman\OneDrive\Desktop\project-x\header-layout.csv"
 metadata_base_path = r"C:\Users\saman\OneDrive\Desktop\project-x\metadata"
 
@@ -28,7 +26,6 @@ def generate_random_number(length):
         return 0
     min_value = 10 ** (length - 1)
     max_value = 10 ** length - 1
-    
     return random.randint(min_value, max_value)
 
 def get_latest_metadata_version(base_path, metadata_type):
@@ -288,7 +285,7 @@ def main(use_same_metadata_version=True):
     print('############################################################################')
 
 if __name__ == "__main__":
-    main(use_same_metadata_version=True) 
+    main(use_same_metadata_version=False) 
 
 
 
