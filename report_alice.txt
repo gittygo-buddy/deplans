@@ -1,0 +1,6 @@
+User Report:
+
+Username: alice
+RE Number: 123
+RE Name: 123
+Report generated at: 2024-09-30 01:48:59.241745
